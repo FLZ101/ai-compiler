@@ -280,13 +280,13 @@ print(f"speedup:   {eager_ms / compiled_ms:.2f}x")
 
 **Input:**
 
-- `01_dynamo_fx.py`
+- `tasks/01/dynamo_fx.py`
 
 **Steps:**
 
-1. Run `python 01_dynamo_fx.py`.
-2. Copy the printed FX graph and generated Python code into `notes/01_fx_graph.md`.
-3. Run `TORCH_LOGS="graph_breaks,guards" python 01_dynamo_fx.py`.
+1. Run `make run SCRIPT=tasks/01/dynamo_fx.py`.
+2. Copy the printed FX graph and generated Python code into `tasks/01/dynamo_fx.md`.
+3. Run `TORCH_LOGS="graph_breaks,guards" make run SCRIPT=tasks/01/dynamo_fx.py`.
 4. Find the line in the logs where the `print` call causes a graph break.
 5. Find one guard for device, one for dtype, and one for shape.
 
@@ -306,7 +306,7 @@ print(f"speedup:   {eager_ms / compiled_ms:.2f}x")
 **Detailed walkthrough**
 
 
-Create `01_dynamo_fx.py`:
+Create `tasks/01/dynamo_fx.py`:
 
 ```python
 import torch
