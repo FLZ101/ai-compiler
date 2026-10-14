@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "torch-compile-study"
+version = "0.1.0"
+description = "Hands-on NVIDIA GPU torch.compile study workbook"
+requires-python = ">=3.10"
+dependencies = []
+
+[tool.black]
+line-length = 100
