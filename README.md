@@ -68,3 +68,4 @@ and explain the related concepts.
 
 - Task 00: eager vs compiled baseline
 - Task 01: Dynamo FX graph, guards, and graph breaks
+- Task 02: AOTAutograd forward/backward decomposition

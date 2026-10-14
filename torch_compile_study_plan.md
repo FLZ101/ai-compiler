@@ -359,13 +359,13 @@ Inspect:
 
 **Input:**
 
-- `02_aotautograd.py`
+- `tasks/02/aotautograd.py`
 
 **Steps:**
 
-1. Run `python 02_aotautograd.py`.
-2. Copy the forward graph and backward graph into `notes/02_aot_graphs.md`.
-3. Run `TORCH_LOGS="dynamo,aot,inductor" python 02_aotautograd.py`.
+1. Run `make run SCRIPT=tasks/02/aotautograd.py`.
+2. Copy the forward graph and backward graph into `tasks/02/aotautograd.md`.
+3. Run `TORCH_LOGS="dynamo,aot,inductor" make run SCRIPT=tasks/02/aotautograd.py`.
 4. Identify at least one decomposed operator, for example `addmm`, `mm`, `t`, or `relu`.
 5. Identify where the backward computation appears.
 
@@ -386,7 +386,7 @@ Inspect:
 **Detailed walkthrough**
 
 
-Create `02_aotautograd.py`:
+Create `tasks/02/aotautograd.py`:
 
 ```python
 import torch
@@ -438,13 +438,13 @@ loss.backward()
 Run with joint-graph logging:
 
 ```bash
-TORCH_LOGS="aot_joint_graph" python 02_aotautograd.py
+TORCH_LOGS="aot_joint_graph" make run SCRIPT=tasks/02/aotautograd.py
 ```
 
 Run with broader logs:
 
 ```bash
-TORCH_LOGS="dynamo,aot,inductor" python 02_aotautograd.py
+TORCH_LOGS="dynamo,aot,inductor" make run SCRIPT=tasks/02/aotautograd.py
 ```
 
 Inspect:
@@ -453,6 +453,17 @@ Inspect:
 - how backward operations appear in the joint graph;
 - how mutations are functionalized;
 - where AOTAutograd hands the graph to Inductor.
+
+Follow-up notes and demos for the joint graph also live in `tasks/02/`:
+
+- `tasks/02/joint_graph_explained.md` — why the joint graph exists, and what
+  `tangents_1` and `expand` mean.
+- `tasks/02/joint_graph_vector_add_sum.py` — `(a + b).sum()`, scalar tangent
+  broadcast with `expand`.
+- `tasks/02/joint_graph_vector_add.py` — `a + b`, vector tangent passed through
+  unchanged.
+- `tasks/02/joint_graph_vector_dot.py` — `(a * b).sum()`, forward saves both
+  primals for backward.
 
 ### Task 3: Capture complete Inductor artifacts
 
