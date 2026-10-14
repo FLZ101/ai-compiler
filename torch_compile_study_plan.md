@@ -34,17 +34,37 @@ Run the tasks in order. Save the output for each task:
 
 ```text
 torch-compile-study/
-  00_baseline.py
-  01_dynamo_fx.py
-  02_aotautograd.py
-  03_inductor_artifacts.py
-  04_fusion_matrix.py
-  05_compile_modes.py
-  06_transformer_block.py
-  07_triton_handwritten.py
+  tasks/
+    00/
+      baseline.py
+      baseline.md
+    01/
+      dynamo_fx.py
+      dynamo_fx.md
+    02/
+      aotautograd.py
+      aotautograd.md
+    03/
+      inductor_artifacts.py
+      inductor_artifacts.md
+    04/
+      fusion_matrix.py
+      fusion_matrix.md
+    05/
+      compile_modes.py
+      compile_modes.md
+    06/
+      transformer_block.py
+      transformer_block.md
+    07/
+      triton_handwritten.py
+      triton_handwritten.md
   artifacts/
-  notes/
 ```
+
+Each task lives in a zero-padded `tasks/NN/` directory. Scripts and notes use
+short names such as `baseline.py` and `baseline.md`, rather than repeating the
+task number in the filename.
 
 Before starting, verify the environment:
 
@@ -173,7 +193,9 @@ Every task follows the same pattern:
 - **Expected output** tells you what a successful run looks like.
 - **Check** is the self-assessment question.
 
-For tasks 10-46, the script filename matches the task number, for example `10_correctness.py`, `23_aot_inductor.py`, and `46_gemm_candidates.py`.
+For tasks 10-46, keep the short script and note names under their task directory,
+for example `tasks/10/correctness.py`, `tasks/23/aot_inductor.py`, and
+`tasks/46/gemm_candidates.py`.
 
 ### Task 0: Establish the eager-vs-compiled baseline
 
@@ -183,12 +205,12 @@ For tasks 10-46, the script filename matches the task number, for example `10_co
 
 - an NVIDIA GPU
 - PyTorch with CUDA
-- `00_baseline.py`
+- `tasks/00/baseline.py`
 
 **Steps:**
 
-1. Create `00_baseline.py` as shown below.
-2. Run `python 00_baseline.py`.
+1. Create `tasks/00/baseline.py` as shown below.
+2. Run `make run SCRIPT=tasks/00/baseline.py`.
 3. Record the eager time, compiled time, and speedup.
 4. Run the script a second time and note whether compilation was cached.
 
@@ -210,7 +232,7 @@ speedup:    1.56x
 **Detailed walkthrough**
 
 
-Create `00_baseline.py`:
+Create `tasks/00/baseline.py`:
 
 ```python
 import torch
