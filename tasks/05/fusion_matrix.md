@@ -111,11 +111,8 @@ dependent GEMMs into one kernel.
 
 ## Horizontal vs vertical fusion
 
-- Vertical fusion combines a producer and its dependent consumer, such as
-  `add -> relu` or a reduction followed by pointwise work.
-- Horizontal fusion combines independent same-shape pointwise operations. The
-  pointwise-chain example is a simple form of vertical fusion across repeated
-  adds, while Inductor can also batch independent pointwise expressions.
+The detailed comparison is in
+[horizontal_vs_vertical_fusion.md](horizontal_vs_vertical_fusion.md).
 
 In this task, the clearest vertical fusion is the bias+ReLU epilogue after the
 matmul. The softmax kernel is a reduction plus pointwise epilogue fused into
