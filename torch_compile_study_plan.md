@@ -633,14 +633,15 @@ triton_per_fused_...
 
 **Input:**
 
-- `04_fusion_matrix.py`
+- `tasks/05/fusion_matrix.py`
+- `tasks/05/fusion_matrix.md`
 
 **Steps:**
 
-1. Run `TORCH_LOGS="+fusion" python 04_fusion_matrix.py`.
-2. Run `TORCH_LOGS="+inductor" python 04_fusion_matrix.py`.
+1. Run `find tasks/05/debug -mindepth 1 -delete 2>/dev/null || true`.
+2. Run `TORCH_COMPILE_DEBUG=1 TORCH_LOGS="+fusion,+inductor,output_code" make run SCRIPT=tasks/05/fusion_matrix.py > tasks/05/fusion_matrix.log 2>&1`.
 3. For each example, record the number of generated kernels and their names.
-4. Fill in the fusion table in `notes/05_fusion_results.md`.
+4. Fill in the fusion table in `tasks/05/fusion_matrix.md`.
 
 **Expected output:**
 
@@ -665,7 +666,7 @@ A completed table similar to:
 **Detailed walkthrough**
 
 
-Create `04_fusion_matrix.py`:
+Create `tasks/05/fusion_matrix.py`:
 
 ```python
 import torch
@@ -712,24 +713,16 @@ for name, fn, args in functions:
     print(f"compiled {name}")
 ```
 
-Run with fusion logs:
+Run with fusion, scheduler, and generated-code logs:
 
 ```bash
-TORCH_LOGS="+fusion" python 04_fusion_matrix.py
+find tasks/05/debug -mindepth 1 -delete 2>/dev/null || true
+TORCH_COMPILE_DEBUG=1 TORCH_LOGS="+fusion,+inductor,output_code" \
+  make run SCRIPT=tasks/05/fusion_matrix.py \
+  > tasks/05/fusion_matrix.log 2>&1
 ```
 
-Run with full Inductor logs:
-
-```bash
-TORCH_LOGS="+inductor" python 04_fusion_matrix.py
-```
-
-For one selected example, capture artifacts:
-
-```bash
-rm -rf torch_compile_debug
-TORCH_COMPILE_DEBUG=1 make run SCRIPT=tasks/03/inductor_artifacts.py
-```
+The generated debug artifact tree is written to `tasks/05/debug/`.
 
 Fill in a table:
 

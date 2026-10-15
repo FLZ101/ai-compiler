@@ -71,3 +71,4 @@ and explain the related concepts.
 - Task 02: AOTAutograd forward/backward decomposition
 - Task 03: Inductor artifacts, fusion nodes, and reduction IR
 - Task 04: annotated generated Triton kernels
+- Task 05: fusion and scheduling matrix
