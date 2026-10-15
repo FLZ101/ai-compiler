@@ -460,28 +460,15 @@ Inspect:
 
 **Input:**
 
-- `03_inductor_artifacts.py`
+- `tasks/03/inductor_artifacts.py`
 
 **Steps:**
 
-1. Run `rm -rf torch_compile_debug`.
-2. Run `TORCH_COMPILE_DEBUG=1 TORCH_LOGS="output_code" python 03_inductor_artifacts.py`.
-3. Run `find torch_compile_debug -maxdepth 3 -type f | sort`.
+1. Remove old artifacts with `find tasks/03/debug -mindepth 1 -delete`.
+2. Run `TORCH_COMPILE_DEBUG=1 TORCH_LOGS="output_code" make run SCRIPT=tasks/03/inductor_artifacts.py`.
+3. Run `find tasks/03/debug -maxdepth 5 -type f | sort`.
 4. Open `fx_graph_readable.py`, `ir_pre_fusion.txt`, `ir_post_fusion.txt`, and `output_code.py`.
-5. Write one paragraph in `notes/03_inductor_artifacts.md` explaining the role of each file.
-
-**Expected output:**
-
-```text
-torch_compile_debug/
-  model__0_forward_1.0/
-    debug.log
-    fx_graph_readable.py
-    fx_graph_runnable.py
-    ir_pre_fusion.txt
-    ir_post_fusion.txt
-    output_code.py
-```
+5. Write one paragraph in `tasks/03/inductor_artifacts.md` explaining the role of each file.
 
 **Check:**
 
@@ -489,16 +476,24 @@ torch_compile_debug/
 - You found pre-fusion and post-fusion IR.
 - You found the generated runtime code.
 
-> The debug directory name such as `model__0_forward_1.0` can vary by PyTorch version. Use `find torch_compile_debug -maxdepth 2 -type d` to locate the actual directory before running the `sed` commands.
+> The debug directory name such as `model__0_inference_0.0` can vary by PyTorch version. Use `find tasks/03/debug -type d -name 'model__*'` to locate the actual directory before running the `sed` commands.
 
 
 **Detailed walkthrough**
 
 
-Create `03_inductor_artifacts.py`:
+Create `tasks/03/inductor_artifacts.py`:
 
 ```python
 import torch
+import torch._inductor.config as inductor_config
+from pathlib import Path
+
+# Regenerate Inductor artifacts on every run.
+inductor_config.force_disable_caches = True
+
+# Keep debug output next to this script instead of the process working directory.
+inductor_config.trace.debug_dir = str(Path(__file__).resolve().parent / "debug")
 
 @torch.compile
 def fn(x, w, b):
@@ -514,36 +509,23 @@ fn(x, w, b)
 Run with debug artifacts and code output:
 
 ```bash
-rm -rf torch_compile_debug
-TORCH_COMPILE_DEBUG=1 TORCH_LOGS="output_code" python 03_inductor_artifacts.py
-```
-
-Find the debug directory:
-
-```bash
-find torch_compile_debug -maxdepth 3 -type f | sort
+find tasks/03/debug -mindepth 1 -delete
+TORCH_COMPILE_DEBUG=1 TORCH_LOGS="output_code" \
+  make run SCRIPT=tasks/03/inductor_artifacts.py
 ```
 
 Expected files:
 
 ```text
-torch_compile_debug/
-  model__0_forward_1.0/
-    debug.log
+tasks/03/debug/
+  torchinductor/
+    model__0_inference_0.0/
     fx_graph_readable.py
     fx_graph_runnable.py
+    fx_graph_transformed.py
     ir_pre_fusion.txt
     ir_post_fusion.txt
     output_code.py
-```
-
-Inspect them in this order:
-
-```bash
-sed -n '1,120p' torch_compile_debug/model__0_forward_1.0/fx_graph_readable.py
-sed -n '1,120p' torch_compile_debug/model__0_forward_1.0/ir_pre_fusion.txt
-sed -n '1,160p' torch_compile_debug/model__0_forward_1.0/ir_post_fusion.txt
-sed -n '1,240p' torch_compile_debug/model__0_forward_1.0/output_code.py
 ```
 
 ### Task 4: Annotate the generated Triton kernel
@@ -552,12 +534,12 @@ sed -n '1,240p' torch_compile_debug/model__0_forward_1.0/output_code.py
 
 **Input:**
 
-- `03_inductor_artifacts.py`
+- `tasks/03/inductor_artifacts.py`
 - `TORCH_LOGS="output_code"`
 
 **Steps:**
 
-1. Run `TORCH_LOGS="output_code" python 03_inductor_artifacts.py > artifacts/generated_code.log 2>&1`.
+1. Run `TORCH_LOGS="output_code" make run SCRIPT=tasks/03/inductor_artifacts.py > artifacts/generated_code.log 2>&1`.
 2. Find the `@triton.jit` function.
 3. Mark every `tl.load`, `tl.dot`, and `tl.store`.
 4. Find the epilogue where bias and ReLU are applied.
@@ -585,7 +567,7 @@ An annotated kernel containing:
 Use the same matmul example from Phase 3, but redirect output to a file:
 
 ```bash
-TORCH_LOGS="output_code" python 03_inductor_artifacts.py > artifacts/generated_code.log 2>&1
+TORCH_LOGS="output_code" make run SCRIPT=tasks/03/inductor_artifacts.py > artifacts/generated_code.log 2>&1
 ```
 
 Open the generated Triton code and label:
@@ -733,7 +715,7 @@ For one selected example, capture artifacts:
 
 ```bash
 rm -rf torch_compile_debug
-TORCH_COMPILE_DEBUG=1 python 03_inductor_artifacts.py
+TORCH_COMPILE_DEBUG=1 make run SCRIPT=tasks/03/inductor_artifacts.py
 ```
 
 Fill in a table:
@@ -1364,7 +1346,7 @@ TORCH_LOGS="guards" python 12_dynamic_shapes.py
 
 ```bash
 rm -rf /tmp/torchinductor_study
-TORCHINDUCTOR_CACHE_DIR=/tmp/torchinductor_study python 03_inductor_artifacts.py
+TORCHINDUCTOR_CACHE_DIR=/tmp/torchinductor_study make run SCRIPT=tasks/03/inductor_artifacts.py
 find /tmp/torchinductor_study -type f | wc -l
 ```
 

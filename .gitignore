@@ -4,4 +4,7 @@
 .ruff_cache/
 __pycache__/
 torch_compile_debug/
+tasks/**/*debug/
+tasks/**/output/
+tasks/**/fusion_output/
 artifacts/
