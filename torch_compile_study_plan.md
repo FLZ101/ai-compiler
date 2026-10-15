@@ -534,16 +534,19 @@ tasks/03/debug/
 
 **Input:**
 
-- `tasks/03/inductor_artifacts.py`
-- `TORCH_LOGS="output_code"`
+- `tasks/04/generated_triton_kernels.py`
+- `tasks/04/generated_triton_kernel.md`
+- `TORCH_LOGS="output_code,+inductor"`
 
 **Steps:**
 
-1. Run `TORCH_LOGS="output_code" make run SCRIPT=tasks/03/inductor_artifacts.py > artifacts/generated_code.log 2>&1`.
-2. Find the `@triton.jit` function.
-3. Mark every `tl.load`, `tl.dot`, and `tl.store`.
-4. Find the epilogue where bias and ReLU are applied.
-5. Find the block-size constants and launch configuration.
+1. Run `find tasks/04/debug -mindepth 1 -delete 2>/dev/null || true`.
+2. Run `TORCH_COMPILE_DEBUG=1 TORCH_LOGS="output_code,+inductor" make run SCRIPT=tasks/04/generated_triton_kernels.py > tasks/04/generated_code.log 2>&1`.
+3. Open `tasks/04/generated_code.log` and the generated `tasks/04/debug/.../output_code.py` files.
+4. Find each `@triton.jit` function.
+5. Mark every `tl.load`, `tl.dot`, and `tl.store`.
+6. Find the epilogue where bias and ReLU are applied.
+7. Find the block-size constants and launch configuration.
 
 **Expected output:**
 
@@ -564,10 +567,13 @@ An annotated kernel containing:
 **Detailed walkthrough**
 
 
-Use the same matmul example from Phase 3, but redirect output to a file:
+Use the same matmul example from Task 3, but keep the output next to Task 4:
 
 ```bash
-TORCH_LOGS="output_code" make run SCRIPT=tasks/03/inductor_artifacts.py > artifacts/generated_code.log 2>&1
+find tasks/04/debug -mindepth 1 -delete 2>/dev/null || true
+TORCH_COMPILE_DEBUG=1 TORCH_LOGS="output_code,+inductor" \
+  make run SCRIPT=tasks/04/generated_triton_kernels.py \
+  > tasks/04/generated_code.log 2>&1
 ```
 
 Open the generated Triton code and label:
@@ -577,9 +583,13 @@ Open the generated Triton code and label:
 - `tl.dot` for the matmul
 - `tl.store` for the output
 - ReLU/bias epilogue
-- block sizes such as `BLOCK_M`, `BLOCK_N`, `BLOCK_K`
+- block sizes such as `YBLOCK`, `XBLOCK`, and `R0_BLOCK`
 - `num_warps` and `num_stages`
 - boundary masks
+
+The Task 4 script enables `inductor_config.triton.native_matmul = True`.
+Without that, the fp32 GEMM is sent to `extern_kernels.mm` and the generated
+Triton code contains the bias/ReLU pointwise epilogue but no `tl.dot`.
 
 Try additional examples:
 
@@ -600,10 +610,13 @@ def layernorm(x):
     return torch.nn.functional.layer_norm(x, x.shape[-1:])
 ```
 
-Run each with:
+The additional examples are already defined in
+`tasks/04/generated_triton_kernels.py`. Run the same command above to emit all
+of their kernels into one log:
 
 ```bash
-TORCH_LOGS="output_code" python example.py
+TORCH_LOGS="output_code,+inductor" \
+  make run SCRIPT=tasks/04/generated_triton_kernels.py
 ```
 
 Look for kernel name patterns:

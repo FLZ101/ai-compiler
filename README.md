@@ -69,3 +69,5 @@ and explain the related concepts.
 - Task 00: eager vs compiled baseline
 - Task 01: Dynamo FX graph, guards, and graph breaks
 - Task 02: AOTAutograd forward/backward decomposition
+- Task 03: Inductor artifacts, fusion nodes, and reduction IR
+- Task 04: annotated generated Triton kernels
