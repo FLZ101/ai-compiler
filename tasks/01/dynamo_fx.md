@@ -1,17 +1,5 @@
 # Task 01: Dynamo capture, FX graph, guards, and graph breaks
 
-## Files
-
-- `tasks/01/dynamo_fx.py`
-- `tasks/01/dynamo_fx.md`
-- `tasks/01/dynamo_explain_vs_compile.md`
-- `tasks/01/nested_torch_compile.md`
-- `tasks/01/guards_static_shape.py`
-- `tasks/01/guards_dynamic_all_args.py`
-- `tasks/01/guards_mark_dynamic.py`
-- `tasks/01/guards_device_dtype.py`
-- `tasks/01/guards.md`
-
 ## Run
 
 ```bash

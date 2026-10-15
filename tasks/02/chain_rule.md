@@ -1,199 +1,95 @@
-# Chain rule in deep learning
+# Chain rule: how gradients flow through ops
 
-Backpropagation is the chain rule applied backward. This note builds from a
-scalar case up to a small two-layer network, using the vector-Jacobian product
-(VJP) form that PyTorch's autograd (and AOTAutograd's backward graphs) actually
-compute.
+Backpropagation is the chain rule applied backward. Each operation receives an
+**upstream gradient** (the tangent, `tangents_1`) and returns gradients for its
+own inputs. That single step is the vector-Jacobian product (VJP), and the rest
+is just composing those steps.
 
-It is the math behind the `tangents_1` and `expand` pieces discussed in
+It is the math behind the `tangents_1` and `expand` pieces in
 `tasks/02/joint_graph_explained.md`.
 
-## 1. The basic rule
+## Notation
 
-If $y = f(u)$ and $u = g(x)$, then:
+- Plain letters are scalars ($x$, $z$), bold lowercase are vectors
+  ($\mathbf{x}$, $\mathbf{y}$), and bold uppercase are matrices
+  ($\mathbf{X}$, $\mathbf{Y}$, $\mathbf{Z}$).
+- $\odot$ — element-wise product
+- $\mathbf{x}^\top \mathbf{y}$ — dot product
+- $\mathbf{x}\mathbf{y}^\top$ — outer product
+- $\lVert \mathbf{X} \rVert_F$ — Frobenius norm
+- $\langle \mathbf{A}, \mathbf{B} \rangle$ — Frobenius inner product,
+  $\sum_{i,j} A_{ij} B_{ij} = \operatorname{tr}(\mathbf{A}^\top \mathbf{B})$
 
-$$\frac{dy}{dx} = \frac{dy}{du} \cdot \frac{du}{dx}$$
+## The master rule
 
-The derivative of the outside function, evaluated at the inside value, times
-the derivative of the inside function.
-
-## 2. Simple scalar example
-
-$$y = (3x + 2)^2$$
-
-Inner: $u = 3x + 2$, so $\dfrac{du}{dx} = 3$.
-
-Outer: $y = u^2$, so $\dfrac{dy}{du} = 2u = 2(3x + 2)$.
-
-$$\frac{dy}{dx} = 2(3x + 2) \cdot 3 = 6(3x + 2)$$
-
-At $x = 1$:
-
-$$u = 5, \qquad \frac{dy}{dx} = 30$$
-
-Numeric check: $y(1) = 25$ and $y(1.001) = (3.003 + 2)^2 = 25.030\ldots$, so
-the slope is about $\dfrac{0.030}{0.001} = 30$.
-
-## 3. One neuron with a nonlinearity
-
-$$z = wx + b, \qquad a = \operatorname{relu}(z), \qquad L = a$$
-
-The chain:
-
-$$\frac{dL}{dw} = \frac{dL}{da}\cdot\frac{da}{dz}\cdot\frac{dz}{dw}$$
-
-$$\frac{dL}{db} = \frac{dL}{da}\cdot\frac{da}{dz}\cdot\frac{dz}{db}$$
-
-$$\frac{dL}{dx} = \frac{dL}{da}\cdot\frac{da}{dz}\cdot\frac{dz}{dx}$$
-
-Concrete numbers: $x = 1$, $w = 2$, $b = -1$.
-
-$$z = 2\cdot 1 - 1 = 1, \qquad a = \operatorname{relu}(1) = 1, \qquad
-\operatorname{relu}'(1) = 1$$
-
-$$\frac{dL}{dw} = 1 \cdot 1 \cdot x = 1$$
-
-$$\frac{dL}{db} = 1 \cdot 1 \cdot 1 = 1$$
-
-$$\frac{dL}{dx} = 1 \cdot 1 \cdot w = 2$$
-
-## 4. Vector intermediate and the VJP
-
-Now $z$ and $a$ are vectors:
-
-$$z = Wx + b, \qquad a = \operatorname{relu}(z), \qquad L = \sum a$$
-
-This is where the `sum -> broadcast` pattern from the joint-graph notes appears.
-
-- $\dfrac{dL}{da} = \mathbf{1}$, the scalar loss broadcast to the output shape.
-  This is exactly the `expand` we saw in the backward graph.
-- $\dfrac{da}{dz} = \operatorname{relu}'(z)$, elementwise.
-- $\dfrac{dL}{dz} = \dfrac{dL}{da} \odot \operatorname{relu}'(z)$, the
-  elementwise product.
-
-Then the gradients:
-
-$$\frac{dL}{dx} = W^\top \frac{dL}{dz}$$
-
-$$\frac{dL}{dW} = \frac{dL}{dz}\, x^\top$$
-
-$$\frac{dL}{db} = \frac{dL}{dz}$$
-
-The key idea: reverse mode never builds the full Jacobian $W$. It only computes
-the product "upstream gradient $\times$ local Jacobian", which is the VJP. The
-upstream gradient is what AOTAutograd calls the tangent (`tangents_1`).
-
-## 5. Two-layer network
-
-$$h = \operatorname{relu}(W_1 x + b_1), \qquad y = W_2 h + b_2, \qquad L = \sum y$$
-
-Backward, in reverse order:
-
-1. $\dfrac{dL}{dy} = \mathbf{1}$
-2. $\dfrac{dL}{db_2} = \dfrac{dL}{dy}$
-3. $\dfrac{dL}{dW_2} = \dfrac{dL}{dy}\, h^\top$
-4. $\dfrac{dL}{dh} = W_2^\top \dfrac{dL}{dy}$
-5. $\dfrac{dL}{dz_1} = \dfrac{dL}{dh} \odot \operatorname{relu}'(W_1 x + b_1)$
-6. $\dfrac{dL}{db_1} = \dfrac{dL}{dz_1}$
-7. $\dfrac{dL}{dW_1} = \dfrac{dL}{dz_1}\, x^\top$
-8. $\dfrac{dL}{dx} = W_1^\top \dfrac{dL}{dz_1}$
-
-Every layer applies the same rule: multiply the incoming (upstream) gradient by
-that layer's local Jacobian. The only new piece in a deep network is that the
-result of one layer becomes the upstream gradient for the next.
-
-## 6. Concrete vector walkthrough
-
-Use the identity weights so the numbers stay simple:
-
-$$x = \begin{bmatrix}1 \\ 2\end{bmatrix}, \qquad
-W = \begin{bmatrix}1 & 0 \\ 0 & 1\end{bmatrix}, \qquad
-b = \begin{bmatrix}0 \\ 0\end{bmatrix}$$
-
-Forward:
-
-$$z = Wx + b = \begin{bmatrix}1 \\ 2\end{bmatrix}, \qquad
-a = \operatorname{relu}(z) = \begin{bmatrix}1 \\ 2\end{bmatrix}, \qquad
-L = \sum a = 3$$
-
-Backward:
-
-$$\frac{dL}{da} = \begin{bmatrix}1 \\ 1\end{bmatrix}
-\quad \text{(broadcast of the scalar loss gradient, the `expand`)}$$
-
-$$\operatorname{relu}'(z) = \begin{bmatrix}1 \\ 1\end{bmatrix}, \qquad
-\frac{dL}{dz} = \begin{bmatrix}1 \\ 1\end{bmatrix}$$
-
-$$\frac{dL}{dx} = W^\top \begin{bmatrix}1 \\ 1\end{bmatrix}
-= \begin{bmatrix}1 \\ 1\end{bmatrix}$$
-
-$$\frac{dL}{dW} = \begin{bmatrix}1 \\ 1\end{bmatrix}
-\begin{bmatrix}1 & 2\end{bmatrix}
-= \begin{bmatrix}1 & 2 \\ 1 & 2\end{bmatrix}$$
-
-$$\frac{dL}{db} = \begin{bmatrix}1 \\ 1\end{bmatrix}$$
-
-Sanity check on $L$: increasing $x_1$ by $dx$ increases $z_1$ by $dx$, $a_1$ by
-$dx$, and $L$ by $dx$, so $\dfrac{dL}{dx_1} = 1$. The same holds for $x_2$, so
-$\dfrac{dL}{dx} = [1, 1]^\top$.
-
-## 7. Vector and matrix handling formulas
-
-The one rule that covers most of deep learning is the **vector-Jacobian
-product**. If $L$ is a scalar and $z = z(x)$ is a vector:
+For $z = f(x)$:
 
 $$\nabla_x L = \left(\frac{\partial z}{\partial x}\right)^\top \nabla_z L$$
 
-Here $\dfrac{\partial z}{\partial x}$ is the Jacobian and $\nabla_z L$ is the
-upstream gradient. Read it right to left: upstream gradient, then multiply by
-the transposed Jacobian.
+Read it right to left: upstream gradient, times the transposed Jacobian. Reverse
+mode never materializes the full Jacobian; it only computes this product.
 
-### Linear layer: $z = Wx + b$
+**Note:** $\nabla_z L$ has the same shape as $z$, the output, and $\nabla_x L$
+has the same shape as $x$, the input.
 
-Shapes: $x\in\mathbb{R}^n$, $W\in\mathbb{R}^{m\times n}$, $b,z\in\mathbb{R}^m$.
+### Examples
 
-| Derivative | Formula | Shape |
-| --- | --- | --- |
-| $\dfrac{\partial z}{\partial x}$ | $W$ | $m\times n$ |
-| $\nabla_x L$ | $W^\top \nabla_z L$ | $n$ |
-| $\nabla_W L$ | $(\nabla_z L)\, x^\top$ | $m\times n$ |
-| $\nabla_b L$ | $\nabla_z L$ | $m$ |
+Scalar to scalar:
 
-### Elementwise nonlinearity: $a = \operatorname{relu}(z)$
+$$z = f(x), \qquad \nabla_x L = f'(x)\,\nabla_z L$$
 
-$$\nabla_z L = \nabla_a L \odot \operatorname{relu}'(z)$$
+Scalar to vector, vector to vector:
 
-The $\odot$ is the elementwise product. This is the `where`/`le` gate in the
-backward graph.
+$$\mathbf{z} = x\,\mathbf{y}, \qquad \nabla_x L = \mathbf{y}^\top \nabla_{\mathbf{z}} L, \qquad \nabla_{\mathbf{y}} L = x\,\nabla_{\mathbf{z}} L$$
 
-### Common matrix identities
+Scalar to matrix:
 
-For a scalar $L$:
+$$\mathbf{Z} = x\,\mathbf{Y}, \qquad \nabla_x L = \langle \mathbf{Y}, \nabla_{\mathbf{Z}} L \rangle, \qquad \nabla_{\mathbf{Y}} L = x\,\nabla_{\mathbf{Z}} L$$
 
-- $\dfrac{\partial}{\partial x}\left(a^\top x\right) = a$
-- $\dfrac{\partial}{\partial x}\left(x^\top A x\right) = \left(A + A^\top\right) x$,
-  which is $2Ax$ when $A$ is symmetric
-- $\dfrac{\partial}{\partial W}\left\|Wx - y\right\|^2 = 2\,(Wx - y)\, x^\top$
-- $\dfrac{\partial}{\partial W}\operatorname{tr}\left(W^\top W\right) = 2W$
-- $\dfrac{\partial}{\partial X}\log\left|\det X\right| = \left(X^{-1}\right)^\top$
+Vector to scalar:
 
-### Shape check
+$$z = \mathbf{x}^\top \mathbf{y}, \qquad \nabla_{\mathbf{x}} L = \mathbf{y}\,\nabla_z L, \qquad \nabla_{\mathbf{y}} L = \mathbf{x}\,\nabla_z L$$
 
-A scalar derivative has the same shape as its variable: $\nabla_x L$ is shaped
-like $x$, and $\nabla_W L$ is shaped like $W$. Verify every step by dimensions:
+Vector to matrix:
 
-$$(n,) = (m\times n)^\top \cdot (m,)$$
+$$\mathbf{Z} = \mathbf{x}\mathbf{y}^\top, \qquad \nabla_{\mathbf{x}} L = \nabla_{\mathbf{Z}} L\,\mathbf{y}, \qquad \nabla_{\mathbf{y}} L = \nabla_{\mathbf{Z}}^\top L\,\mathbf{x}$$
 
-$$(m\times n) = (m,) \cdot (n,)^\top$$
+Matrix to scalar:
 
-## Why reverse mode is the chain rule backward
+$$z = \lVert \mathbf{X} \rVert_F^2 = \sum_{i,j} X_{ij}^2, \qquad \nabla_{\mathbf{X}} L = 2\,\mathbf{X}\,\nabla_z L$$
 
-Forward mode computes $\dfrac{dy}{dx}$ by carrying a Jacobian forward and costs
-$O(n)$ passes for $n$ inputs. Reverse mode instead carries the upstream gradient
-backward and computes every input gradient in one pass, at roughly the cost of
-one forward plus one backward pass.
+Matrix to vector:
 
-The backward graphs printed by AOTAutograd are literally these VJP steps:
-`expand` is the broadcast of a scalar loss gradient, `mm`/`permute` are the
-$W^\top$ parts, and the elementwise `where`/`le` are the $\operatorname{relu}'$
-gate.
+$$\mathbf{z} = \mathbf{X}\mathbf{y}, \qquad \nabla_{\mathbf{X}} L = \nabla_{\mathbf{z}} L\,\mathbf{y}^\top, \qquad \nabla_{\mathbf{y}} L = \mathbf{X}^\top \nabla_{\mathbf{z}} L$$
+
+Matrix to matrix:
+
+$$\mathbf{Z} = \mathbf{X}\mathbf{Y}, \qquad \nabla_{\mathbf{X}} L = \nabla_{\mathbf{Z}} L\,\mathbf{Y}^\top, \qquad \nabla_{\mathbf{Y}} L = \mathbf{X}^\top \nabla_{\mathbf{Z}} L$$
+
+Transpose:
+
+$$\mathbf{Z} = \mathbf{X}^\top, \qquad \nabla_{\mathbf{X}} L = \left(\nabla_{\mathbf{Z}} L\right)^\top$$
+
+View (reshape):
+
+$$\mathbf{z} = \operatorname{view}\left(\mathbf{x},\ \text{new shape}\right), \qquad \nabla_{\mathbf{x}} L = \operatorname{view}\left(\nabla_{\mathbf{z}} L,\ \text{shape of } \mathbf{x}\right)$$
+
+Element-wise add:
+
+$$\mathbf{z} = \mathbf{x} + \mathbf{y}, \qquad \nabla_{\mathbf{x}} L = \nabla_{\mathbf{z}} L, \qquad \nabla_{\mathbf{y}} L = \nabla_{\mathbf{z}} L$$
+
+Element-wise multiply:
+
+$$\mathbf{z} = \mathbf{x} \odot \mathbf{y}, \qquad \nabla_{\mathbf{x}} L = \nabla_{\mathbf{z}} L \odot \mathbf{y}, \qquad \nabla_{\mathbf{y}} L = \nabla_{\mathbf{z}} L \odot \mathbf{x}$$
+
+Reduce sum:
+
+$$z = \sum \mathbf{x}, \qquad \nabla_{\mathbf{x}} L = \operatorname{expand}\left(\nabla_z L,\ \text{shape of } \mathbf{x}\right)$$
+
+Expand (broadcast):
+
+$$\mathbf{z} = \operatorname{expand}\left(\mathbf{x},\ \text{target shape}\right), \qquad \nabla_{\mathbf{x}} L = \sum_{\text{broadcast dims}} \nabla_{\mathbf{z}} L$$
+
+ReLU:
+
+$$\mathbf{z} = \operatorname{relu}(\mathbf{x}), \qquad \nabla_{\mathbf{x}} L = \nabla_{\mathbf{z}} L \odot \mathbf{1}[\mathbf{x} > 0]$$

@@ -1,15 +1,5 @@
 # Task 02: AOTAutograd forward/backward decomposition
 
-## Files
-
-- `tasks/02/aotautograd.py`
-- `tasks/02/aotautograd.md`
-- `tasks/02/chain_rule.md`
-- `tasks/02/joint_graph_explained.md`
-- `tasks/02/joint_graph_vector_add_sum.py`
-- `tasks/02/joint_graph_vector_add.py`
-- `tasks/02/joint_graph_vector_dot.py`
-
 ## Run
 
 ```bash

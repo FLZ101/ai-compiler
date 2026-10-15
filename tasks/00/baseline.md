@@ -1,12 +1,5 @@
 # Task 00: Eager vs compiled baseline
 
-## Files
-
-- `tasks/00/baseline.py`
-- `tasks/00/baseline.md`
-- `tasks/00/cuda_programming_model.md`
-- `tasks/00/eager_vs_inductor.md`
-
 ## Run
 
 ```bash
