@@ -27,8 +27,10 @@ PIP_INDEX_ARGS := --index-url $(PYTORCH_INDEX_URL)
 endif
 
 SCRIPT ?=
+LOG_DIR ?= $(dir $(SCRIPT))debug
+LOG_FILE ?= $(LOG_DIR)/$(basename $(notdir $(SCRIPT))).log
 
-.PHONY: venv check shell run torchao format-python precommit clean help
+.PHONY: venv check shell run run-log torchao format-python precommit clean help
 
 $(VENV_MARKER):
 	$(PYTHON) -m venv $(VENV)
@@ -52,6 +54,12 @@ run: venv
 	@test -n "$(SCRIPT)" || { echo "usage: make run SCRIPT=<path.py>"; exit 1; }
 	$(TRITON_ENV) $(VENV_PYTHON) $(SCRIPT)
 
+run-log: venv
+	@test -n "$(SCRIPT)" || { echo "usage: make run-log SCRIPT=<path.py> [TORCH_LOGS=...] [TORCH_COMPILE_DEBUG=1]"; exit 1; }
+	@mkdir -p "$(LOG_DIR)"
+	@echo "writing log to $(LOG_FILE)"
+	@$(if $(TORCH_LOGS),TORCH_LOGS='$(TORCH_LOGS)') $(if $(TORCH_COMPILE_DEBUG),TORCH_COMPILE_DEBUG='$(TORCH_COMPILE_DEBUG)') $(TRITON_ENV) $(VENV_PYTHON) $(SCRIPT) > "$(LOG_FILE)" 2>&1
+
 torchao: venv
 	$(VENV_PIP) install torchao
 
@@ -71,6 +79,7 @@ help:
 	@echo "  make check         Verify the CUDA/PyTorch/Triton environment"
 	@echo "  make shell         Open a shell with the venv Python"
 	@echo "  make run           Run a study script: make run SCRIPT=00_baseline.py"
+	@echo "  make run-log       Run a script and write output to its task debug dir"
 	@echo "  make torchao       Install TorchAO for the quantization tasks"
 	@echo "  make format-python Format Python sources with black from .venv"
 	@echo "  make precommit      Run pre-commit on all files"

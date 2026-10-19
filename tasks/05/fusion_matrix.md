@@ -8,8 +8,7 @@ them into different numbers of GPU kernels.
 ```bash
 find tasks/05/debug -mindepth 1 -delete 2>/dev/null || true
 TORCH_COMPILE_DEBUG=1 TORCH_LOGS=+fusion,+inductor,output_code \
-  make run SCRIPT=tasks/05/fusion_matrix.py \
-  > tasks/05/fusion_matrix.log 2>&1
+  make run-log SCRIPT=tasks/05/fusion_matrix.py
 ```
 
 The `+fusion` log shows scheduler fusion decisions. The `+inductor` and

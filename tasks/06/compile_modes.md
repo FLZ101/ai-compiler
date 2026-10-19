@@ -19,11 +19,11 @@ make run SCRIPT=tasks/06/compile_modes.py
 To see scheduler, Triton heuristic, and launch configuration logs:
 
 ```bash
-TORCH_LOGS=+inductor make run SCRIPT=tasks/06/compile_modes.py \
-  > tasks/06/compile_modes.log 2>&1
+TORCH_LOGS=+inductor make run-log SCRIPT=tasks/06/compile_modes.py
 ```
 
 The script disables Inductor caches, so every mode compiles on every run.
+The log is written under `tasks/06/debug/`, which is already git-ignored.
 
 ## Modes
 

@@ -544,8 +544,8 @@ tasks/03/debug/
 **Steps:**
 
 1. Run `find tasks/04/debug -mindepth 1 -delete 2>/dev/null || true`.
-2. Run `TORCH_COMPILE_DEBUG=1 TORCH_LOGS="output_code,+inductor" make run SCRIPT=tasks/04/generated_triton_kernels.py > tasks/04/generated_code.log 2>&1`.
-3. Open `tasks/04/generated_code.log` and the generated `tasks/04/debug/.../output_code.py` files.
+2. Run `TORCH_COMPILE_DEBUG=1 TORCH_LOGS="output_code,+inductor" make run-log SCRIPT=tasks/04/generated_triton_kernels.py`.
+3. Open `tasks/04/debug/generated_triton_kernels.log` and the generated `tasks/04/debug/.../output_code.py` files.
 4. Find each `@triton.jit` function.
 5. Mark every `tl.load`, `tl.dot`, and `tl.store`.
 6. Find the epilogue where bias and ReLU are applied.
@@ -575,8 +575,7 @@ Use the same matmul example from Task 3, but keep the output next to Task 4:
 ```bash
 find tasks/04/debug -mindepth 1 -delete 2>/dev/null || true
 TORCH_COMPILE_DEBUG=1 TORCH_LOGS="output_code,+inductor" \
-  make run SCRIPT=tasks/04/generated_triton_kernels.py \
-  > tasks/04/generated_code.log 2>&1
+  make run-log SCRIPT=tasks/04/generated_triton_kernels.py
 ```
 
 Open the generated Triton code and label:
@@ -642,7 +641,7 @@ triton_per_fused_...
 **Steps:**
 
 1. Run `find tasks/05/debug -mindepth 1 -delete 2>/dev/null || true`.
-2. Run `TORCH_COMPILE_DEBUG=1 TORCH_LOGS="+fusion,+inductor,output_code" make run SCRIPT=tasks/05/fusion_matrix.py > tasks/05/fusion_matrix.log 2>&1`.
+2. Run `TORCH_COMPILE_DEBUG=1 TORCH_LOGS="+fusion,+inductor,output_code" make run-log SCRIPT=tasks/05/fusion_matrix.py`.
 3. For each example, record the number of generated kernels and their names.
 4. Fill in the fusion table in `tasks/05/fusion_matrix.md`.
 
@@ -721,8 +720,7 @@ Run with fusion, scheduler, and generated-code logs:
 ```bash
 find tasks/05/debug -mindepth 1 -delete 2>/dev/null || true
 TORCH_COMPILE_DEBUG=1 TORCH_LOGS="+fusion,+inductor,output_code" \
-  make run SCRIPT=tasks/05/fusion_matrix.py \
-  > tasks/05/fusion_matrix.log 2>&1
+  make run-log SCRIPT=tasks/05/fusion_matrix.py
 ```
 
 The generated debug artifact tree is written to `tasks/05/debug/`.
@@ -752,7 +750,7 @@ Fill in a table:
 
 1. Run `make run SCRIPT=tasks/06/compile_modes.py`.
 2. Record the measured time for each mode.
-3. Run `TORCH_LOGS=+inductor make run SCRIPT=tasks/06/compile_modes.py > tasks/06/compile_modes.log 2>&1`.
+3. Run `TORCH_LOGS=+inductor make run-log SCRIPT=tasks/06/compile_modes.py`.
 4. Find log entries for `num_warps`, `num_stages`, and `triton_config`.
 5. Write a short conclusion: when does `max-autotune` help, and when does `reduce-overhead` help?
 
@@ -828,8 +826,7 @@ for name, compiled in variants.items():
 Run with Inductor logs:
 
 ```bash
-TORCH_LOGS=+inductor make run SCRIPT=tasks/06/compile_modes.py \
-  > tasks/06/compile_modes.log 2>&1
+TORCH_LOGS=+inductor make run-log SCRIPT=tasks/06/compile_modes.py
 ```
 
 Look for:

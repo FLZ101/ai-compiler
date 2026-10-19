@@ -9,8 +9,7 @@ be able to find the few lines that do the actual work.
 ```bash
 find tasks/04/debug -mindepth 1 -delete 2>/dev/null || true
 TORCH_COMPILE_DEBUG=1 TORCH_LOGS=output_code,+inductor \
-  make run SCRIPT=tasks/04/generated_triton_kernels.py \
-  > tasks/04/generated_code.log 2>&1
+  make run-log SCRIPT=tasks/04/generated_triton_kernels.py
 ```
 
 The `+inductor` logger is added because `output_code` prints the generated
@@ -19,8 +18,8 @@ Inductor's Triton heuristic.
 
 `TORCH_COMPILE_DEBUG=1` makes Inductor write its complete artifact tree to
 `tasks/04/debug/`. The annotated kernel snippets in this note are the readable
-summary; the full generated code is in `tasks/04/generated_code.log` and the
-debug tree.
+summary; the full generated code is in `tasks/04/debug/generated_triton_kernels.log`
+and the debug tree.
 
 ## Why the debug tree has four directories
 

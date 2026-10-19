@@ -34,6 +34,7 @@ and NumPy. `make check` verifies the GPU, PyTorch CUDA availability, and Triton.
 make check
 make run SCRIPT=tasks/00/baseline.py
 make run SCRIPT=tasks/01/dynamo_fx.py
+make run-log SCRIPT=tasks/06/compile_modes.py TORCH_LOGS=+inductor
 make format-python
 make precommit
 make clean
@@ -45,6 +46,9 @@ Run a task script with Dynamo logs:
 TORCH_LOGS="guards" make run SCRIPT=tasks/01/dynamo_fx.py
 TORCH_LOGS="graph_breaks,guards" make run SCRIPT=tasks/01/dynamo_fx.py
 ```
+
+`make run-log` runs the same script but writes stdout/stderr to that task's
+git-ignored debug directory, for example `tasks/06/debug/compile_modes.log`.
 
 ## Task layout
 
@@ -72,3 +76,4 @@ and explain the related concepts.
 - Task 03: Inductor artifacts, fusion nodes, and reduction IR
 - Task 04: annotated generated Triton kernels
 - Task 05: fusion and scheduling matrix
+- Task 06: compile modes, CUDA graphs, and autotuning
