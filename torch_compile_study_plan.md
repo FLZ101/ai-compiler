@@ -48,15 +48,18 @@ torch-compile-study/
       inductor_artifacts.py
       inductor_artifacts.md
     04/
+      generated_triton_kernels.py
+      generated_triton_kernel.md
+    05/
       fusion_matrix.py
       fusion_matrix.md
-    05/
+    06/
       compile_modes.py
       compile_modes.md
-    06/
+    07/
       transformer_block.py
       transformer_block.md
-    07/
+    08/
       triton_handwritten.py
       triton_handwritten.md
   artifacts/
@@ -740,23 +743,26 @@ Fill in a table:
 
 **Input:**
 
-- `05_compile_modes.py`
+- `tasks/06/compile_modes.py`
+- `tasks/06/compile_modes.md`
+- `tasks/06/cuda_graphs.md`
+- `tasks/06/autotune.md`
 
 **Steps:**
 
-1. Run `python 05_compile_modes.py`.
+1. Run `make run SCRIPT=tasks/06/compile_modes.py`.
 2. Record the measured time for each mode.
-3. Run `TORCH_LOGS="+inductor" python 05_compile_modes.py`.
+3. Run `TORCH_LOGS=+inductor make run SCRIPT=tasks/06/compile_modes.py > tasks/06/compile_modes.log 2>&1`.
 4. Find log entries for `num_warps`, `num_stages`, and `triton_config`.
 5. Write a short conclusion: when does `max-autotune` help, and when does `reduce-overhead` help?
 
 **Expected output:**
 
 ```text
-default                        6.123 ms/iter
-reduce-overhead                6.101 ms/iter
-max-autotune                   5.456 ms/iter
-max-autotune-no-cudagraphs     5.510 ms/iter
+default                      compile=  4.07s     2.867 ms/iter
+reduce-overhead              compile=  0.58s     3.080 ms/iter
+max-autotune                 compile=  0.71s     2.891 ms/iter
+max-autotune-no-cudagraphs   compile=  0.62s     2.691 ms/iter
 ```
 
 **Check:**
@@ -768,10 +774,22 @@ max-autotune-no-cudagraphs     5.510 ms/iter
 **Detailed walkthrough**
 
 
-Create `05_compile_modes.py`:
+Create `tasks/06/compile_modes.py`:
 
 ```python
+import time
+
 import torch
+import torch._inductor.config as inductor_config
+
+from pathlib import Path
+
+# Force fresh compilation for every mode.
+inductor_config.force_disable_caches = True
+
+# Keep optional debug artifacts next to this script.
+inductor_config.trace.debug_dir = str(Path(__file__).resolve().parent / "debug")
+
 
 def fn(x, w, b):
     return torch.relu(x @ w + b)
@@ -788,28 +806,30 @@ variants = {
 }
 
 for name, compiled in variants.items():
+    compile_start = time.perf_counter()
     for _ in range(3):
         compiled(x, w, b)
+    torch.cuda.synchronize()
+    compile_seconds = time.perf_counter() - compile_start
 
-torch.cuda.synchronize()
-
-for name, compiled in variants.items():
     start = torch.cuda.Event(enable_timing=True)
     end = torch.cuda.Event(enable_timing=True)
 
     start.record()
-    for _ in range(20):
+    for _ in range(30):
         compiled(x, w, b)
     end.record()
     torch.cuda.synchronize()
 
-    print(f"{name:28s} {start.elapsed_time(end) / 20:.3f} ms/iter")
+    elapsed_ms = start.elapsed_time(end)
+    print(f"{name:28s} compile={compile_seconds:6.2f}s  " f"{elapsed_ms / 30:8.3f} ms/iter")
 ```
 
 Run with Inductor logs:
 
 ```bash
-TORCH_LOGS="+inductor" python 05_compile_modes.py
+TORCH_LOGS=+inductor make run SCRIPT=tasks/06/compile_modes.py \
+  > tasks/06/compile_modes.log 2>&1
 ```
 
 Look for:
@@ -826,14 +846,15 @@ Look for:
 
 **Input:**
 
-- `06_transformer_block.py`
+- `tasks/07/transformer_block.py`
+- `tasks/07/transformer_block.md`
 - optional `nsys` and `ncu`
 
 **Steps:**
 
-1. Run `python 06_transformer_block.py`.
-2. Run `nsys profile --stats=true python 06_transformer_block.py` if available.
-3. Run `ncu --set full python 06_transformer_block.py` for deeper kernel analysis if available.
+1. Run `make run SCRIPT=tasks/07/transformer_block.py`.
+2. Run `nsys profile --stats=true .venv/bin/python tasks/07/transformer_block.py` if available.
+3. Run `ncu --set full .venv/bin/python tasks/07/transformer_block.py` for deeper kernel analysis if available.
 4. Record the top three kernels by GPU time.
 5. Record whether CUDA graphs reduce launch overhead.
 
@@ -852,7 +873,7 @@ Look for:
 **Detailed walkthrough**
 
 
-Create `06_transformer_block.py`:
+Create `tasks/07/transformer_block.py`:
 
 ```python
 import torch
@@ -892,19 +913,19 @@ torch.cuda.synchronize()
 Profile the Python program:
 
 ```bash
-python 06_transformer_block.py
+make run SCRIPT=tasks/07/transformer_block.py
 ```
 
 Profile with NVIDIA Nsight Systems:
 
 ```bash
-nsys profile --stats=true python 06_transformer_block.py
+nsys profile --stats=true .venv/bin/python tasks/07/transformer_block.py
 ```
 
 Profile kernels with Nsight Compute:
 
 ```bash
-ncu --set full python 06_transformer_block.py
+ncu --set full .venv/bin/python tasks/07/transformer_block.py
 ```
 
 Collect:
@@ -922,12 +943,13 @@ Collect:
 
 **Input:**
 
-- `07_triton_handwritten.py`
+- `tasks/08/triton_handwritten.py`
+- `tasks/08/triton_handwritten.md`
 
 **Steps:**
 
-1. Run `python 07_triton_handwritten.py`.
-2. Run `TORCH_LOGS="output_code" python 07_triton_handwritten.py`.
+1. Run `make run SCRIPT=tasks/08/triton_handwritten.py`.
+2. Run `TORCH_LOGS=output_code make run SCRIPT=tasks/08/triton_handwritten.py`.
 3. Compare your `matmul_kernel` with the generated Inductor kernel.
 4. Write a table comparing block sizes, loops, masks, and `tl.dot`.
 
@@ -944,13 +966,13 @@ or a very small numerical difference.
 - You can explain the purpose of each `BLOCK_*` constant.
 - You can explain why the generated kernel and your kernel have the same high-level shape.
 
-> In `07_triton_handwritten.py`, the example assumes that `M`, `N`, and `K` are divisible by the selected block sizes. For arbitrary shapes, add load/store masks for the K loop as well as the output tile.
+> In `tasks/08/triton_handwritten.py`, the example assumes that `M`, `N`, and `K` are divisible by the selected block sizes. For arbitrary shapes, add load/store masks for the K loop as well as the output tile.
 
 
 **Detailed walkthrough**
 
 
-Create `07_triton_handwritten.py`:
+Create `tasks/08/triton_handwritten.py`:
 
 ```python
 import torch
@@ -1053,7 +1075,7 @@ print("max abs diff:", (out_triton - out_inductor).abs().max().item())
 Generate Inductor's matmul kernel for comparison:
 
 ```bash
-TORCH_LOGS="output_code" python 07_triton_handwritten.py
+TORCH_LOGS=output_code make run SCRIPT=tasks/08/triton_handwritten.py
 ```
 
 Compare:
@@ -1798,14 +1820,14 @@ For reliable IR files, use the hand-written Triton matmul. Inductor-generated Tr
 
 ```bash
 rm -f *.ttir *.ttgir *.llir *.ptx
-TRITON_DUMP_IR=1 python 07_triton_handwritten.py
+TRITON_DUMP_IR=1 make run SCRIPT=tasks/08/triton_handwritten.py
 ls -1 *.ttir *.ttgir *.llir *.ptx
 ```
 
 Also try:
 
 ```bash
-TRITON_ALWAYS_COMPILE=1 TRITON_KERNEL_DUMP=1 python 07_triton_handwritten.py
+TRITON_ALWAYS_COMPILE=1 TRITON_KERNEL_DUMP=1 make run SCRIPT=tasks/08/triton_handwritten.py
 ```
 
 **Expected output:**

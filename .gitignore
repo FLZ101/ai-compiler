@@ -7,4 +7,5 @@ torch_compile_debug/
 tasks/**/*debug/
 tasks/**/output/
 tasks/**/fusion_output/
+tasks/**/*.log
 artifacts/
