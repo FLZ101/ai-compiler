@@ -745,6 +745,10 @@ Fill in a table:
 - `tasks/06/compile_modes.md`
 - `tasks/06/cuda_graphs.md`
 - `tasks/06/autotune.md`
+- `tasks/06/many_small_gemms.py`
+- `tasks/06/many_small_gemms.md`
+- `tasks/06/native_matmul_autotune.py`
+- `tasks/06/native_matmul_autotune.md`
 
 **Steps:**
 
@@ -837,6 +841,11 @@ Look for:
 - autotuning candidate evaluation
 - CUDA graph usage
 
+For a clearer launch-bound comparison, also run
+`tasks/06/many_small_gemms.py`.
+
+For an autotuning-only isolation run, use `tasks/06/native_matmul_autotune.py`.
+
 ### Task 7: Profile a realistic transformer block
 
 **Goal:** connect generated source to actual GPU execution and find a bottleneck.
@@ -850,21 +859,36 @@ Look for:
 **Steps:**
 
 1. Run `make run SCRIPT=tasks/07/transformer_block.py`.
-2. Run `nsys profile --stats=true .venv/bin/python tasks/07/transformer_block.py` if available.
+2. Run `/usr/local/cuda/bin/nsys profile --trace=cuda,nvtx,osrt --syscall=process-tree --cuda-memory-usage=true --pytorch=autograd-nvtx --stats=true .venv/bin/python tasks/07/transformer_block.py` if available.
 3. Run `ncu --set full .venv/bin/python tasks/07/transformer_block.py` for deeper kernel analysis if available.
-4. Record the top three kernels by GPU time.
-5. Record whether CUDA graphs reduce launch overhead.
+4. If `nsys` cannot collect kernel/syscall rows or `ncu` lacks performance-counter permission, run `PROFILE=1 make run SCRIPT=tasks/07/transformer_block.py`.
+5. Record the top three kernels by GPU time.
+6. Record whether CUDA graphs reduce launch overhead.
 
 **Expected output:**
 
-- a list of generated kernel names such as `triton_poi_fused_...`
-- a ranked list of kernel durations
-- memory throughput and occupancy if `ncu` was used
+```text
+eager              max_diff=0.000e+00     0.675 ms/iter
+compiled           max_diff=7.153e-07     0.589 ms/iter
+reduce-overhead    max_diff=7.153e-07     0.592 ms/iter
+```
+
+Top compiled-path CUDA kernels on the RTX 3060:
+
+| Kernel | Self CUDA |
+| --- | --- |
+| `ampere_sgemm_64x64_tn` | 1.934 ms |
+| `ampere_sgemm_128x64_tn` | 1.008 ms |
+| `ampere_sgemm_128x128_nn` | 0.639 ms |
+| `triton_poi_fused_addmm_gelu_view_6` | 0.300 ms |
+| `triton_per_fused__softmax_prepare_softmax_online_3` | 0.250 ms |
 
 **Check:**
 
 - You can identify the bottleneck kernel.
 - You can state whether the workload is compute-bound or launch-bound.
+- In this environment, the cuBLAS `ampere_sgemm_*` GEMMs dominate.
+- CUDA graphs do not improve this block because it is not launch-bound.
 
 
 **Detailed walkthrough**
@@ -873,10 +897,15 @@ Look for:
 Create `tasks/07/transformer_block.py`:
 
 ```python
+import os
+
 import torch
 import torch.nn as nn
 
+
 class Block(nn.Module):
+    """Small transformer block used to collect realistic kernel names."""
+
     def __init__(self, dim=256, heads=8):
         super().__init__()
         self.attn = nn.MultiheadAttention(dim, heads, batch_first=True)
@@ -895,16 +924,64 @@ class Block(nn.Module):
         x = self.norm2(x + mlp_out)
         return x
 
-model = Block().cuda()
+
+def warmup(fn, x, calls=3):
+    for _ in range(calls):
+        fn(x)
+    torch.cuda.synchronize()
+
+
+def benchmark(fn, x, iters=20):
+    start = torch.cuda.Event(enable_timing=True)
+    end = torch.cuda.Event(enable_timing=True)
+
+    start.record()
+    for _ in range(iters):
+        fn(x)
+    end.record()
+    torch.cuda.synchronize()
+
+    return start.elapsed_time(end) / iters
+
+
+torch.manual_seed(0)
+
+model = Block(dim=256, heads=8).cuda().eval()
 x = torch.randn(8, 128, 256, device="cuda")
 
-compiled = torch.compile(model)
-out = compiled(x)
+variants = {
+    "eager": model,
+    "compiled": torch.compile(model),
+    "reduce-overhead": torch.compile(model, mode="reduce-overhead"),
+}
 
-for _ in range(10):
-    out = compiled(x)
+with torch.inference_mode():
+    eager_out = model(x)
+    torch.cuda.synchronize()
 
-torch.cuda.synchronize()
+    for name, fn in variants.items():
+        warmup(fn, x)
+        out = fn(x)
+        torch.cuda.synchronize()
+
+        max_diff = (out - eager_out).abs().max().item()
+        elapsed_ms = benchmark(fn, x)
+        print(f"{name:18s} max_diff={max_diff:.3e}  {elapsed_ms:8.3f} ms/iter")
+
+    if os.environ.get("PROFILE") == "1":
+        from torch.profiler import ProfilerActivity, profile
+
+        compiled_fn = variants["compiled"]
+        with profile(
+            activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
+            record_shapes=False,
+            profile_memory=False,
+        ) as prof:
+            for _ in range(10):
+                compiled_fn(x)
+            torch.cuda.synchronize()
+
+        print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=20))
 ```
 
 Profile the Python program:
@@ -916,13 +993,27 @@ make run SCRIPT=tasks/07/transformer_block.py
 Profile with NVIDIA Nsight Systems:
 
 ```bash
-nsys profile --stats=true .venv/bin/python tasks/07/transformer_block.py
+/usr/local/cuda/bin/nsys profile \
+  --trace=cuda,nvtx,osrt --syscall=process-tree \
+  --cuda-memory-usage=true \
+  --pytorch=autograd-nvtx \
+  --stats=true .venv/bin/python tasks/07/transformer_block.py
+```
+
+If `sudo: nsys: command not found`, use the full path above. The
+`--pytorch=autograd-nvtx` flag is required if NVTX data is desired.
+
+If syscall tracing is unavailable, `nsys` prints:
+
+```text
+WARNING: --syscall is not available and will be disabled.
+CAP_BPF and CAP_PERFMON capabilities ... are required to run syscall tracing.
 ```
 
 Profile kernels with Nsight Compute:
 
 ```bash
-ncu --set full .venv/bin/python tasks/07/transformer_block.py
+/usr/local/cuda/bin/ncu --set full .venv/bin/python tasks/07/transformer_block.py
 ```
 
 Collect:

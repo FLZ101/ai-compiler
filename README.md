@@ -77,3 +77,4 @@ and explain the related concepts.
 - Task 04: annotated generated Triton kernels
 - Task 05: fusion and scheduling matrix
 - Task 06: compile modes, CUDA graphs, and autotuning
+- Task 07: transformer block profiling with torch/nsys/ncu

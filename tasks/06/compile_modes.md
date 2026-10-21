@@ -9,6 +9,10 @@ workload and connects the mode name to what Inductor changes at runtime.
 - `tasks/06/compile_modes.md`
 - `tasks/06/cuda_graphs.md`
 - `tasks/06/autotune.md`
+- `tasks/06/many_small_gemms.py`
+- `tasks/06/many_small_gemms.md`
+- `tasks/06/native_matmul_autotune.py`
+- `tasks/06/native_matmul_autotune.md`
 
 ## Run
 
@@ -84,6 +88,10 @@ This is the expected pattern: `reduce-overhead` and `max-autotune` capture the
 whole graph with CUDA graphs, while `default` and the explicit no-CUDA-graph
 mode do not.
 
+For a much clearer mode difference, see `many_small_gemms.md`.
+
+For an autotuning-only isolation run, see `native_matmul_autotune.md`.
+
 ### Triton launch configuration
 
 For the pointwise `triton_poi_fused_add_relu_0` kernel, the selected
@@ -124,3 +132,7 @@ the cuBLAS matmul. This is why the runtime differences are small.
   Here the GPU GEMM dominates, so CUDA graphs do not improve wall time much.
 - CUDA graphs do not make a single GEMM run faster; they remove repeated CPU
   launch overhead around the already-compiled kernels.
+- The `many_small_gemms.py` example shows CUDA graphs reducing a launch-bound
+  workload from about 2.1 ms/iter to about 0.5 ms/iter.
+- The `native_matmul_autotune.py` example isolates autotuning from CUDA Graphs;
+  on this GPU it shows autotuning did not improve the native Triton GEMM.
