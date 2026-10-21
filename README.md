@@ -7,6 +7,14 @@ PyTorch eager -> Dynamo -> FX Graph -> AOTAutograd -> TorchInductor -> Triton ->
 ```
 
 The full task plan is in [torch_compile_study_plan.md](torch_compile_study_plan.md).
+The separate [custom_accelerator_backend_plan.md](custom_accelerator_backend_plan.md)
+describes how to extend the same compiler route to a non-NVIDIA accelerator.
+The [cuda_operator_optimization_plan.md](cuda_operator_optimization_plan.md)
+covers hand-implementing and profiling typical operators in PyTorch, Triton,
+and CUDA C++.
+The [graph_optimization_plan.md](graph_optimization_plan.md) covers graph-level
+optimizations such as operator fusion, DCE/CSE, layout, memory planning, and
+dynamic-shape guards, with manual and `torch.compile` examples.
 
 ## Requirements
 
@@ -78,3 +86,4 @@ and explain the related concepts.
 - Task 05: fusion and scheduling matrix
 - Task 06: compile modes, CUDA graphs, and autotuning
 - Task 07: transformer block profiling with torch/nsys/ncu
+- Task 08: hand-written Triton matmul vs Inductor

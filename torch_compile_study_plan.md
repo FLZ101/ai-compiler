@@ -1066,6 +1066,12 @@ Create `tasks/08/triton_handwritten.py`:
 import torch
 import triton
 import triton.language as tl
+import torch._inductor.config as inductor_config
+
+# Without this, Inductor sends the matmul to an external GEMM such as cuBLAS
+# and output_code shows extern_kernels.mm. Native matmul makes Inductor emit
+# its own Triton GEMM so it can be compared with matmul_kernel below.
+inductor_config.triton.native_matmul = True
 
 @triton.jit
 def matmul_kernel(
@@ -2688,6 +2694,59 @@ TORCH_LOGS="aot_joint_graph" python 36_checkpoint.py
 ## Stage 5: Compiler APIs, configuration, and deployment
 
 These tasks cover the operational and programmatic side of the Inductor route.
+
+### Production deployment practice
+
+PyTorch is a complete training, compiler, and runtime stack, but production
+inference usually means **export and compile once, then serve a leaner
+artifact**, rather than running eager Python per request.
+
+```text
+train PyTorch
+  -> export/compile
+  -> validate numerical equivalence
+  -> quantize/prune if needed
+  -> package weights + runtime
+  -> serve and monitor
+```
+
+Common production choices:
+
+- Custom PyTorch models: `torch.export` + `torch.compile`, then TorchServe or a
+  C++/AOTInductor service.
+- CNNs and traditional transformers: ONNX + TensorRT on NVIDIA or OpenVINO on
+  Intel.
+- Large language models: vLLM, TensorRT-LLM, SGLang, or TGI, often with
+  continuous batching and PagedAttention.
+- Multi-model GPU serving: NVIDIA Triton Inference Server with multiple
+  backends.
+
+Key practices:
+
+- Export with explicit static or constrained dynamic shapes to avoid runtime
+  graph breaks and recompilation.
+- Warm up compiled models and CUDA graphs before serving traffic.
+- Preload weights into pinned/GPU memory at startup.
+- Use dynamic/continuous batching for throughput and CUDA graphs for fixed-shape
+  low-latency inference.
+- Quantize for inference; FP8/INT8/INT4 is often the largest VRAM and throughput
+  win.
+- Validate output parity against the eager reference model before rollout.
+- Benchmark latency percentiles, not only average throughput.
+- Keep Python out of the request hot path; the runtime should mostly launch
+  kernels.
+- Version the model, runtime, and compiled kernels together.
+
+What to avoid:
+
+- Shipping an arbitrary eager Python function as the production entrypoint.
+- Allowing unbounded dynamic shapes that trigger frequent recompilation.
+- Skipping numerical and end-to-end latency tests after optimization.
+
+The plan covers the PyTorch side of this route in Task 23 and Tasks 40-44:
+export/AOTInductor, artifact loading, backend comparison, weight freezing, and
+C++ wrapper codegen. Vendor backends such as TensorRT are out of scope for the
+Inductor workbook.
 
 ### Task 37: Inspect and tune Inductor configuration
 
