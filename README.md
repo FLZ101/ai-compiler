@@ -87,3 +87,4 @@ and explain the related concepts.
 - Task 06: compile modes, CUDA graphs, and autotuning
 - Task 07: transformer block profiling with torch/nsys/ncu
 - Task 08: hand-written Triton matmul vs Inductor
+- Task 09: compiler source-code trace
